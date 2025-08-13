@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Учёт популярности PUBG Mobile</title>
+<style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background: #e6e6e6;
+        color: #222;
+        margin: 0;
+        padding: 20px;
+    }
+
+    h1 {
+        text-align: center;
+        color: #444;
+    }
+
+    .container {
+        max-width: 800px;
+        margin: auto;
+    }
+
+    .input-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+        justify-content: center;
+    }
+
+    input, button {
+        padding: 10px;
+        border-radius: 6px;
+        border: none;
+        font-size: 16px;
+    }
+
+    input {
+        min-width: 150px;
+    }
+
+    button {
+        background: #f8d64e;
+        color: #000;
+        cursor: pointer;
+        font-weight: bold;
+        transition: 0.2s;
+    }
+
+    button:hover {
+        background: #ffeb80;
+    }
+
+    .account {
+        background: #fff;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+
+    .account-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .account-name {
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    .popularity {
+        color: #f8d64e;
+        font-size: 16px;
+    }
+
+    .controls {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .controls input {
+        width: 80px;
+        text-align: center;
+    }
+
+    @media (max-width: 600px) {
+        .account {
+            padding: 10px;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Учёт популярности PUBG Mobile</h1>
+
+    <div class="input-group">
+        <input type="text" id="accountName" placeholder="Название аккаунта">
+        <input type="number" id="accountPopularity" placeholder="Популярность" min="0">
+        <button onclick="addAccount()">Добавить аккаунт</button>
+    </div>
+
+    <div id="accountList"></div>
+</div>
+
+<script>
+let accounts = JSON.parse(localStorage.getItem('accounts')) || [];
+let lastDailyBonus = localStorage.getItem('lastDailyBonus');
+let lastWeeklyBonus = localStorage.getItem('lastWeeklyBonus');
+
+function saveData() {
+    localStorage.setItem('accounts', JSON.stringify(accounts));
+    localStorage.setItem('lastDailyBonus', lastDailyBonus);
+    localStorage.setItem('lastWeeklyBonus', lastWeeklyBonus);
+}
+
+function renderAccounts() {
+    const list = document.getElementById('accountList');
+    list.innerHTML = '';
+
+    accounts.forEach((acc, index) => {
+        const div = document.createElement('div');
+        div.className = 'account';
+        div.innerHTML = `
+            <div class="account-header">
+                <span class="account-name">${acc.name}</span>
+                <span class="popularity">${acc.popularity} поп.</span>
+            </div>
+            <div class="controls">
+                <input type="number" id="change-${index}" placeholder="± число">
+                <button onclick="approveChange(${index})">Approve</button>
+                <button onclick="deleteAccount(${index})" style="background:#ff4c4c;color:#fff;">Удалить</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function addAccount() {
+    const name = document.getElementById('accountName').value.trim();
+    const pop = parseInt(document.getElementById('accountPopularity').value);
+
+    if (!name || isNaN(pop) || pop < 0) {
+        alert('Введите правильные данные!');
+        return;
+    }
+
+    accounts.push({ name: name, popularity: pop });
+    saveData();
+    renderAccounts();
+
+    document.getElementById('accountName').value = '';
+    document.getElementById('accountPopularity').value = '';
+}
+
+function approveChange(index) {
+    const changeInput = document.getElementById(`change-${index}`);
+    let value = parseInt(changeInput.value);
+
+    if (isNaN(value)) {
+        alert('Введите число для изменения популярности!');
+        return;
+    }
+
+    accounts[index].popularity += value;
+    if (accounts[index].popularity < 0) accounts[index].popularity = 0;
+
+    saveData();
+    renderAccounts();
+}
+
+function deleteAccount(index) {
+    if (confirm('Удалить аккаунт?')) {
+        accounts.splice(index, 1);
+        saveData();
+        renderAccounts();
+    }
+}
+
+// Начисления бонусов
+function checkDailyBonus() {
+    const now = new Date();
+    const utcNow = new Date(now.toUTCString());
+    const todayDate = utcNow.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    if (lastDailyBonus !== todayDate) {
+        accounts.forEach(acc => acc.popularity += 200);
+        lastDailyBonus = todayDate;
+        saveData();
+        renderAccounts();
+    }
+}
+
+function checkWeeklyBonus() {
+    const now = new Date();
+    const utcNow = new Date(now.toUTCString());
+    const weekNumber = getUTCWeekNumber(utcNow);
+
+    if (lastWeeklyBonus != weekNumber && utcNow.getUTCDay() === 1 && utcNow.getUTCHours() === 0) {
+        accounts.forEach(acc => acc.popularity += 1200);
+        lastWeeklyBonus = weekNumber;
+        saveData();
+        renderAccounts();
+    }
+}
+
+// Получение номера недели UTC
+function getUTCWeekNumber(date) {
+    const firstJan = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    const days = Math.floor((date - firstJan) / (24 * 60 * 60 * 1000));
+    return Math.ceil((days + firstJan.getUTCDay() + 1) / 7);
+}
+
+// Проверка каждую минуту
+setInterval(() => {
+    checkDailyBonus();
+    checkWeeklyBonus();
+}, 60000);
+
+renderAccounts();
+checkDailyBonus();
+checkWeeklyBonus();
+</script>
+
+</body>
+</html>
